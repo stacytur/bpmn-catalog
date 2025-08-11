@@ -29,7 +29,11 @@
   }
 
   async function load(file) {
-    const res = await fetch('../' + file);
+    const url = file.startsWith('processes/') ? file : `processes/${file}`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      throw new Error(`Failed to load ${url}: ${res.status}`);
+    }
     const xml = await res.text();
     await viewer.importXML(xml);
     viewer.get('canvas').zoom('fit-viewport');
