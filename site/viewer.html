@@ -1,0 +1,51 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>BPMN Viewer</title>
+<style>
+  html, body { height: 100%; margin: 0; font-family: system-ui, Arial, sans-serif; }
+  header { padding: 12px 16px; border-bottom: 1px solid #eee; display: flex; gap: 8px; align-items: center; }
+  #canvas { height: calc(100% - 54px); }
+  select, button { padding: 6px 8px; }
+</style>
+<header>
+  <strong>BPMN Viewer</strong>
+  <select id="fileSelect"></select>
+  <button id="open">Open</button>
+  <button id="fit">Fit</button>
+</header>
+<div id="canvas"></div>
+<script src="https://unpkg.com/bpmn-js@11/dist/bpmn-viewer.development.js"></script>
+<script>
+  const viewer = new BpmnJS({ container: '#canvas' });
+
+  async function listFiles() {
+    const res = await fetch('files.json');
+    return res.ok ? res.json() : ['processes/hello-world.bpmn'];
+  }
+
+  function fileParam() {
+    const p = new URLSearchParams(location.search).get('file');
+    return p || 'processes/hello-world.bpmn';
+  }
+
+  async function load(file) {
+    const res = await fetch('../' + file);
+    const xml = await res.text();
+    await viewer.importXML(xml);
+    viewer.get('canvas').zoom('fit-viewport');
+  }
+
+  (async function init() {
+    const files = await listFiles();
+    const select = document.getElementById('fileSelect');
+    files.forEach(f => {
+      const o = document.createElement('option');
+      o.value = f; o.textContent = f.replace(/^processes\//,'');
+      if (f === fileParam()) o.selected = true;
+      select.appendChild(o);
+    });
+    await load(fileParam());
+    document.getElementById('open').onclick = () => load(select.value);
+    document.getElementById('fit').onclick = () => viewer.get('canvas').zoom('fit-viewport');
+  })();
+</script>
