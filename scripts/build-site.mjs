@@ -2,29 +2,47 @@ import fs from 'fs/promises';
 import path from 'path';
 
 const ROOT = process.cwd();
-const PROC_DIR = path.join(ROOT, 'processes');
-const SITE_DIR = path.join(ROOT, 'site');
+const SRC_DIR = path.join(ROOT, 'processes');
+const OUT_DIR = path.join(ROOT, 'site');
 
-const walk = async (dir) => {
-  const out = [];
-  const items = await fs.readdir(dir, { withFileTypes: true });
-  for (const it of items) {
-    const full = path.join(dir, it.name);
-    if (it.isDirectory()) out.push(...await walk(full));
-    else if (it.isFile() && it.name.endsWith('.bpmn')) out.push(full);
+async function walk(dir) {
+  const entries = await fs.readdir(dir, { withFileTypes: true });
+  const files = [];
+  for (const e of entries) {
+    const full = path.join(dir, e.name);
+    if (e.isDirectory()) files.push(...await walk(full));
+    else if (e.isFile() && e.name.endsWith('.bpmn')) files.push(full);
   }
-  return out;
-};
+  return files;
+}
 
-await fs.mkdir(SITE_DIR, { recursive: true });
-const files = (await walk(PROC_DIR)).map(f => path.relative(ROOT, f).replace(/\\/g,'/'));
+await fs.mkdir(OUT_DIR, { recursive: true });
 
-await fs.writeFile(path.join(SITE_DIR, 'files.json'), JSON.stringify(files, null, 2), 'utf8');
+const filesAbs = await walk(SRC_DIR);
+const files = filesAbs.map(f => path.relative(ROOT, f).replace(/\\/g, '/')); // 'processes/...'
+
+// копируем *.bpmn → site/processes/…
+for (const rel of files) {
+  const dst = path.join(OUT_DIR, rel);
+  await fs.mkdir(path.dirname(dst), { recursive: true });
+  await fs.copyFile(path.join(ROOT, rel), dst);
+}
+
+// список для viewer
+await fs.writeFile(path.join(OUT_DIR, 'files.json'), JSON.stringify(files, null, 2), 'utf8');
+
+// главная страница каталога
+const items = files.map(f => {
+  const label = f.startsWith('processes/') ? f.slice('processes/'.length) : f;
+  return `<li><a href="viewer.html?file=${encodeURIComponent(f)}">${label}</a></li>`;
+}).join('\n');
 
 const index = `<!doctype html><meta charset="utf-8"><title>BPMN Catalog</title>
-<h1>BPMN Catalog</h1><ul>
-${files.map(f=>`<li><a href="viewer.html?file=${encodeURIComponent(f)}">${f.replace(/^processes\\//,'')}</a></li>`).join('\n')}
+<h1>BPMN Catalog</h1>
+<ul>
+${items}
 </ul>`;
-await fs.writeFile(path.join(SITE_DIR, 'index.html'), index, 'utf8');
+await fs.writeFile(path.join(OUT_DIR, 'index.html'), index, 'utf8');
 
-console.log('Site built. Files:', files.length);
+console.log('Built site with', files.length, 'BPMN file(s).');
+
