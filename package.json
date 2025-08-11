@@ -1,0 +1,8 @@
+{
+  "name": "bpmn-catalog",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:site": "node scripts/build-site.mjs"
+  }
+}
